@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 怎麼讀文字？Token 入門</title>
+<meta name="description" content="給完全沒接觸過 AI 的人的 Token 教學簡報，內容全部取自 Token LLM Wiki。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f1ea; --paper: #fffdf8; --ink: #1f1d1a; --muted: #6d675e; --line: #ddd6c8;
+  --accent: #e4572e; --c1: #ffd6a5; --c2: #caffbf; --c3: #9bf6ff; --c4: #bdb2ff; --c5: #ffc6ff; --byte: #e9e4da;
+  --sans: "Noto Sans TC", "Noto Sans CJK TC", "PingFang TC", "Microsoft JhengHei", sans-serif; --mono: "JetBrains Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); overflow: hidden; }
+.deck { position: fixed; inset: 0 0 56px 0; display: grid; place-items: center; }
+.stage { width: 1280px; height: 720px; position: relative; transform-origin: center center; background: var(--paper);
+  box-shadow: 0 20px 60px rgba(31,29,26,.12); border-radius: 18px; overflow: hidden; }
+section.slide { position: absolute; inset: 0; padding: 56px 80px 76px; display: none; flex-direction: column; overflow: hidden; }
+section.slide.active { display: flex; }
+.kicker { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: .08em; margin: 0 0 10px; }
+h1 { font-size: 52px; line-height: 1.25; margin: 0 0 18px; font-weight: 900; letter-spacing: .01em; }
+h2 { font-size: 46px; line-height: 1.3; margin: 0 0 22px; font-weight: 900; }
+p, li { font-size: 28px; line-height: 1.6; margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 21px; }
+.guess { font-size: 22px; color: var(--muted); border-left: 4px solid var(--accent); padding: 4px 0 4px 14px; margin-top: auto; }
+.body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.label { font-size: 21px; color: var(--muted); min-width: 150px; }
+.tk { font-family: var(--mono); font-size: 34px; padding: 8px 14px; border-radius: 10px; background: var(--c1); border: 2px solid rgba(31,29,26,.15); white-space: pre; }
+.tk:nth-child(5n+2) { background: var(--c2); } .tk:nth-child(5n+3) { background: var(--c3); }
+.tk:nth-child(5n+4) { background: var(--c4); } .tk:nth-child(5n+5) { background: var(--c5); }
+.tk.byte { background: var(--byte); color: var(--muted); font-size: 26px; border-style: dashed; }
+.tk.sm { font-size: 27px; padding: 6px 10px; }
+.id { font-family: var(--mono); font-size: 30px; padding: 6px 12px; border-radius: 8px; background: var(--ink); color: var(--paper); }
+.arrow { font-size: 30px; color: var(--muted); }
+.big { font-size: 96px; font-weight: 900; line-height: 1; color: var(--accent); }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.card { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 20px 22px; }
+.card h3 { font-size: 30px; margin: 0 0 8px; }
+.card p { font-size: 23px; margin: 0 0 6px; }
+.card.pick { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(228,87,46,.15); }
+.flow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 25px; }
+.flow span.box { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; background: #fff; }
+table.bpe { border-collapse: collapse; font-size: 26px; }
+table.bpe td, table.bpe th { border-bottom: 2px solid var(--line); padding: 8px 14px; text-align: left; }
+table.bpe tr.step { opacity: .12; transition: opacity .3s; } table.bpe tr.step.shown { opacity: 1; }
+button.next { font: inherit; font-size: 20px; padding: 8px 18px; border-radius: 99px; border: 2px solid var(--ink); background: #fff; cursor: pointer; align-self: flex-start; }
+.timeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.timeline .yr { font-size: 44px; font-weight: 900; color: var(--accent); }
+.compare { display: grid; grid-template-columns: 1fr auto; gap: 14px 24px; align-items: center; }
+.count { font-size: 34px; font-weight: 900; white-space: nowrap; }
+.count em { font-style: normal; color: var(--accent); }
+.foot { position: absolute; left: 80px; right: 80px; bottom: 22px; display: flex; justify-content: space-between; font-size: 17px; color: var(--muted); }
+.foot a { color: var(--muted); }
+.cover { background: radial-gradient(circle at 85% 20%, #ffe2d6 0, transparent 40%), var(--paper); }
+.nav { position: fixed; bottom: 14px; right: 18px; display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.nav button { font: inherit; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; width: 36px; height: 36px; cursor: pointer; }
+.progress { position: fixed; left: 0; top: 0; height: 4px; background: var(--accent); transition: width .3s; }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="deck"><div class="stage" id="stage">
+
+<section class="slide cover" id="s1" data-sources="wiki/overview.md,wiki/queries/2026-11-23-slides-outline.md,wiki/concepts/cost-and-languages.md">
+  <div class="body">
+    <p class="kicker">TOKEN 入門</p>
+    <h1>AI 怎麼「讀」文字？</h1>
+    <p class="muted">一個給完全沒接觸過 AI 的人的 10 分鐘簡報：<br>AI 看到的不是字，而是一塊一塊的積木。</p>
+    <div class="row"><span class="tk">人工智慧</span><span class="arrow">→ AI 看到</span><span class="tk">人工</span><span class="tk">智慧</span></div>
+  </div>
+  <div class="foot"><span>雲科大 工設碩一 張芫瑞｜按 → 或點右下角換頁</span><span>內容全部取自 Token LLM Wiki</span></div>
+</section>
+
+<section class="slide" id="s2" data-sources="wiki/concepts/letters-and-spelling.md,wiki/sources/s08-experiment-gpt-tokenizer.md">
+  <p class="kicker">先猜一題</p>
+  <h2>你看到 10 個字母，AI 看到的是 3 塊積木</h2>
+  <div class="body">
+    <div class="row"><span class="label">我們看到</span><span class="tk sm">s</span><span class="tk sm">t</span><span class="tk sm">r</span><span class="tk sm">a</span><span class="tk sm">w</span><span class="tk sm">b</span><span class="tk sm">e</span><span class="tk sm">r</span><span class="tk sm">r</span><span class="tk sm">y</span></div>
+    <div class="row"><span class="label">AI 看到</span><span class="tk">st</span><span class="tk">raw</span><span class="tk">berry</span></div>
+    <div class="row"><span class="label">其實是</span><span class="id">302</span><span class="id">1618</span><span class="id">19772</span></div>
+  </div>
+  <p class="guess">推測：所以問 AI「strawberry 有幾個 r」，它要從 3 個編號倒推回字母，這比看起來難。</p>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/letters-and-spelling.md">為什麼 AI 看不到字母</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s3" data-sources="wiki/concepts/token.md,wiki/concepts/letters-and-spelling.md">
+  <p class="kicker">Token 是什麼</p>
+  <h2>文字會先被切成積木，這些積木叫 token</h2>
+  <div class="body">
+    <div class="row"><span class="tk">I</span><span class="tk">␣like</span><span class="tk">␣eating</span><span class="tk">␣apples</span></div>
+    <div class="row"><span class="tk">token</span><span class="tk">ization</span></div>
+    <p>一塊可能是整個單字、半個單字，還會連著前面的空格（␣）。<br>英文平均 1 個 token 大約 4 個字元。</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/token.md">Token</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s4" data-sources="wiki/concepts/token.md,wiki/concepts/tokenizer.md">
+  <p class="kicker">AI 只看得到數字</p>
+  <h2>每塊積木都有編號，AI 讀的其實是一串數字</h2>
+  <div class="body">
+    <div class="row"><span class="tk">Hello</span><span class="tk">␣world</span><span class="arrow">→</span><span class="id">13225</span><span class="id">2375</span></div>
+    <div class="flow"><span class="box">你打的字</span>→<span class="box">切成積木</span>→<span class="box">換成編號</span>→<span class="box">AI</span>→<span class="box">編號</span>→<span class="box">還原成字</span></div>
+    <p>負責切塊與還原的程式叫 tokenizer，像 AI 前面的翻譯機；轉回去不會少任何一個字。</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/tokenizer.md">Tokenizer</a>、<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/token.md">Token</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s5" data-sources="wiki/concepts/tokenization-levels.md">
+  <p class="kicker">怎麼切</p>
+  <h2>切法有三種，現在用的是「常見片段」</h2>
+  <div class="body">
+    <div class="cols">
+      <div class="card"><h3>整個單字</h3><p>love、loving、loved 各要一格，目錄太大。</p><p class="muted">沒看過的字就沒辦法。</p></div>
+      <div class="card"><h3>單一字母</h3><p>什麼字都拼得出來。</p><p class="muted">但句子變很長，一個字母幾乎沒有意義。</p></div>
+      <div class="card pick"><h3>常見片段（子詞）</h3><p>常見的字整塊留，少見的字拆小塊。</p><div class="row"><span class="tk sm">annoy</span><span class="tk sm">ing</span><span class="tk sm">ly</span></div></div>
+    </div>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/tokenization-levels.md">三種切法</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s6" data-sources="wiki/concepts/bpe.md">
+  <p class="kicker">BPE：怎麼學會切</p>
+  <h2>一再把「最常黏在一起的兩塊」合成一塊</h2>
+  <div class="body">
+    <p class="small muted">練習用的資料：hug 出現 10 次、pug 5 次、pun 12 次、bun 4 次、hugs 5 次。一開始全部拆成單一字母。</p>
+    <table class="bpe">
+      <tr><th>步驟</th><th>合併</th><th>為什麼選它</th></tr>
+      <tr class="step"><td>第 1 次</td><td><span class="tk sm">u</span> + <span class="tk sm">g</span> → <span class="tk sm">ug</span></td><td>相鄰出現 20 次，最多</td></tr>
+      <tr class="step"><td>第 2 次</td><td><span class="tk sm">u</span> + <span class="tk sm">n</span> → <span class="tk sm">un</span></td><td>相鄰出現 16 次</td></tr>
+      <tr class="step"><td>第 3 次</td><td><span class="tk sm">h</span> + <span class="tk sm">ug</span> → <span class="tk sm">hug</span></td><td>相鄰出現 15 次</td></tr>
+    </table>
+    <button class="next" id="bpeNext" type="button">下一步</button>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/bpe.md">BPE</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s7" data-sources="wiki/concepts/bpe.md">
+  <p class="kicker">這個方法從哪來</p>
+  <h2>BPE 原本是拿來壓縮檔案的</h2>
+  <div class="body">
+    <div class="row"><span class="tk sm">aaabdaaabac</span><span class="arrow">→</span><span class="tk sm">ZabdZabac</span><span class="arrow">→</span><span class="tk sm">ZYdZYac</span><span class="arrow">→</span><span class="tk sm">XdXac</span></div>
+    <p class="small muted">把最常出現的 aa 換成 Z、ab 換成 Y，再把 ZY 換成 X，檔案就變短了。</p>
+    <div class="timeline">
+      <div class="card"><div class="yr">1994</div><p>Philip Gage 提出，用來壓縮資料</p></div>
+      <div class="card"><div class="yr">2016</div><p>被拿來切字，讓翻譯 AI 看得懂沒看過的字</p></div>
+      <div class="card"><div class="yr">現在</div><p>GPT 等聊天 AI 都用它來切 token</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/bpe.md">BPE</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s8" data-sources="wiki/concepts/cost-and-languages.md,wiki/sources/s08-experiment-gpt-tokenizer.md">
+  <p class="kicker">中文怎麼切</p>
+  <h2>同一句話，中文用掉的 token 比英文多</h2>
+  <div class="body">
+    <div class="compare">
+      <div class="row"><span class="tk sm">The</span><span class="tk sm">␣gira</span><span class="tk sm">ffe</span><span class="tk sm">␣is</span><span class="tk sm">␣eating</span><span class="tk sm">␣leaves</span><span class="tk sm">.</span></div>
+      <div class="count">29 字元 → <em>7</em></div>
+      <div class="row"><span class="tk sm">長</span><span class="tk byte">e9 a0</span><span class="tk byte">b8</span><span class="tk sm">鹿</span><span class="tk sm">正在</span><span class="tk sm">吃</span><span class="tk byte">e6 a8</span><span class="tk byte">b9</span><span class="tk sm">葉</span><span class="tk sm">。</span></div>
+      <div class="count">9 字 → <em>10</em></div>
+    </div>
+    <p>中文只有 9 個字，卻比 29 個字元的英文多用 3 塊。舊版的 tokenizer 更誇張：同一句要 17 塊。</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/cost-and-languages.md">Token 與費用、語言</a>、<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/sources/s08-experiment-gpt-tokenizer.md">自己的實驗</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s9" data-sources="wiki/concepts/bytes-and-chinese.md">
+  <p class="kicker">半個字</p>
+  <h2>一個中文字，可能被切成兩半</h2>
+  <div class="body">
+    <div class="row"><span class="tk">頸</span><span class="arrow">= 電腦裡的 3 個位元組 →</span><span class="tk byte">e9 a0</span><span class="tk byte">b8</span></div>
+    <p>電腦存一個中文字要 3 個位元組（byte）。積木從位元組開始拼，所以「長頸鹿」3 個字被切成 4 塊，其中「頸」被拆成兩半，單獨一半根本不是字。</p>
+    <p class="small muted">好處：任何文字、表情符號都切得出來，不會有「不認得的字」。</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/bytes-and-chinese.md">位元組與中文</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s10" data-sources="wiki/concepts/cost-and-languages.md,wiki/concepts/context-window.md">
+  <p class="kicker">為什麼要在意</p>
+  <h2>付多少錢、一次能讀多長，都用 token 算</h2>
+  <div class="body">
+    <div class="cols">
+      <div class="card"><h3>計費</h3><p>用 AI 服務常常按 token 收費，token 越多越貴。</p></div>
+      <div class="card"><h3>白板大小</h3><p>AI 一次能看的內容有上限，你的提問和它的回答共用同一塊白板。</p></div>
+      <div class="card"><h3>例子</h3><p>早期模型上限是 2048 個 token，大約 1,500 個英文單字。</p></div>
+    </div>
+  </div>
+  <p class="guess">推測：同一塊白板，用中文能寫的內容比英文少。</p>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/cost-and-languages.md">費用與語言</a>、<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/context-window.md">上下文長度</a></span><span></span></div>
+</section>
+
+<section class="slide" id="s11" data-sources="wiki/concepts/token-politics.md,wiki/sources/s07-39c3-giraffe.md">
+  <p class="kicker">延伸思考</p>
+  <h2>Token 不是中立的：長頸鹿有 51 種拼法</h2>
+  <div class="body">
+    <div class="row"><span class="label">一種 tokenizer</span><span class="tk sm">g</span><span class="tk sm">ira</span><span class="tk sm">ffe</span><span class="label">　多一個空格</span><span class="tk sm">␣gira</span><span class="tk sm">ffe</span></div>
+    <div class="row"><span class="label">另一種</span><span class="tk sm">g</span><span class="tk sm">ir</span><span class="tk sm">affe</span><span class="label">　「拼錯」也行</span><span class="tk sm">gir</span><span class="tk sm">affe</span></div>
+    <p>積木目錄是從網路資料統計出來的：品牌名稱、社群帳號可能整塊保留，一般的字反而被拆碎。演講者主張，這決定了 AI 能表達什麼。</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/concepts/token-politics.md">Token 不是中立的</a>、39C3 演講 51 Ways to Spell the Image Giraffe</span><span></span></div>
+</section>
+
+<section class="slide" id="s12" data-sources="wiki/overview.md,wiki/concepts/tokenizer.md">
+  <p class="kicker">帶走三件事</p>
+  <h2>AI 讀的是積木的編號，不是字</h2>
+  <div class="body">
+    <ol>
+      <li>文字會先被切成 token，再換成數字交給 AI。</li>
+      <li>切法是從資料統計出來的：常見的字整塊，少見的字拆碎。</li>
+      <li>同一句話，中文比英文用更多 token，還會被切成半個字。</li>
+    </ol>
+    <p class="small">自己試試：搜尋「OpenAI Tokenizer」，貼一句中文和一句英文比比看。<br>完整整理：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/index.md">Token LLM Wiki</a>（官方說明、教學課程、論文、演講與自己的實驗）</p>
+  </div>
+  <div class="foot"><span>依據：<a href="https://github.com/andreajang0223-ops/token-llm-wiki/blob/main/wiki/overview.md">總覽</a></span><span></span></div>
+</section>
+
+</div></div>
+<div class="nav"><button type="button" id="prev" aria-label="上一頁">←</button><span id="counter"></span><button type="button" id="next" aria-label="下一頁">→</button></div>
+<script>
+(() => {
+  const slides = [...document.querySelectorAll('section.slide')];
+  const stage = document.getElementById('stage');
+  let cur = 0;
+  function fit() {
+    const s = Math.min((window.innerWidth - 16) / 1280, (window.innerHeight - 72) / 720);
+    stage.style.transform = `scale(${Math.min(s, 1.5)})`;
+  }
+  function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+    document.getElementById('counter').textContent = `${cur + 1} / ${slides.length}`;
+    document.getElementById('progress').style.width = `${(cur + 1) / slides.length * 100}%`;
+    history.replaceState(null, '', `#${cur + 1}`);
+  }
+  // BPE 頁：每按一次顯示下一個合併步驟
+  const steps = [...document.querySelectorAll('table.bpe tr.step')];
+  document.getElementById('bpeNext').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = steps.find((r) => !r.classList.contains('shown'));
+    if (n) n.classList.add('shown'); else steps.forEach((r) => r.classList.remove('shown'));
+  });
+  document.getElementById('prev').onclick = () => go(cur - 1);
+  document.getElementById('next').onclick = () => go(cur + 1);
+  document.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) go(cur + 1);
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) go(cur - 1);
+  });
+  let x0 = null;
+  document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 40) go(cur + (dx < 0 ? 1 : -1));
+    x0 = null;
+  });
+  window.addEventListener('resize', fit);
+  window.deck = { go, count: slides.length };
+  fit();
+  go((parseInt(location.hash.slice(1), 10) || 1) - 1);
+})();
+</script>
+</body>
+</html>

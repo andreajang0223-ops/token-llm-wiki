@@ -16,6 +16,9 @@ AI（大型語言模型，LLM）看到的不是我們打的字，而是一串被
 2. 切法是從資料統計出來的（BPE），常見的字整塊、少見的字拆碎（[BPE](concepts/bpe.md)）。
 3. 同一句話，中文比英文用更多 token，而且會被拆成「半個字」；新的 tokenizer 改善很多（[費用與語言](concepts/cost-and-languages.md)）。
 
+## 用這個 Wiki 做的成品
+- 教學簡報的大綱：[queries/2026-11-23-slides-outline.md](queries/2026-11-23-slides-outline.md)
+
 ## 建議閱讀順序
 1. [Token 是什麼](concepts/token.md)
 2. [Tokenizer：文字與數字的翻譯機](concepts/tokenizer.md)

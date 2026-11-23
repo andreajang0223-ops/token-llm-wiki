@@ -18,6 +18,9 @@
 - [concepts/token-politics.md](concepts/token-politics.md)｜詞彙表反映資料組成，切法不是中立的
 - [concepts/bytes-and-chinese.md](concepts/bytes-and-chinese.md)｜從位元組開始切，任何文字都切得出來
 
+## 提問紀錄
+- [queries/2026-11-23-slides-outline.md](queries/2026-11-23-slides-outline.md)｜給新手的 12 頁 Token 簡報大綱，每頁對應的 Wiki 頁
+
 ## 資料來源
 - [sources/s01-openai-tokens.md](sources/s01-openai-tokens.md)｜OpenAI 官方說明：token 的定義與經驗法則
 - [sources/s02-hf-bpe-course.md](sources/s02-hf-bpe-course.md)｜Hugging Face 課程：BPE 的訓練與 hug/pug 例子
